@@ -14,7 +14,7 @@ import keyboard
 import random
 
 from lib.android import get_cv2_image_from_device, resize_emulator
-from lib.config import getAppConfig
+from lib.config import getAppConfig, getFileConfig
 from lib.googlesheets.auth import get_client
 from lib.googlesheets.data_sheets import add_data_tab
 from lib.googlesheets.dkp_calculation_sheets import add_looker_tab
@@ -64,30 +64,32 @@ def open_donate_link():
 def open_discord_link():
     webbrowser.open_new(r"https://discord.gg/CvU96gVfjS")
 
-def create_input_gui():
+def create_input_gui(config):
     root = tk.Tk()
     root.title('RokTracker')
-    root.geometry("400x350")
-
+    root.geometry("400x350")   
     kingdom_input = tk.StringVar(root)
-    curr_scan_pos_input = tk.StringVar(root)
-    new_file_chkbox = tk.IntVar()
-    is_repair_chkbox = tk.IntVar()
-    variable2 = tk.IntVar(root)
-    var1 = tk.IntVar()
+    search_option = tk.IntVar(root)
+    resume_scan = tk.IntVar()
+
+    kingdom_input.set(config["KINGDOM_ID"])
+    resume_scan.set(config["RESUME_SCAN"])
 
     options = [50 + i * 25 for i in range(38)]
-    variable2.set(options[0])
+
+    if config["SEARCH_RANGE"] == '':
+        search_option.set(options[0])
+    else: 
+        search_option.set(config["SEARCH_RANGE"])
+
+
 
     def search():
         if kingdom_input.get():
-            global kingdom, search_range, resume_scanning, new_file, current_pos, repair_mode
+            global kingdom, search_range, resume_scanning, current_pos
             kingdom = kingdom_input.get()
-            search_range = variable2.get()
-            resume_scanning = var1.get()
-            new_file = new_file_chkbox.get()
-            current_pos = curr_scan_pos_input.get()
-            repair_mode = is_repair_chkbox.get()
+            search_range = search_option.get()
+            resume_scanning = resume_scan.get()
             root.destroy()
             print("Scanning Started...")
         else:
@@ -97,20 +99,13 @@ def create_input_gui():
     tk.Label(root, text='Kingdom', font=('calibre', 10, 'bold')).grid(row=0, column=0)
     kingdom_entry = tk.Entry(root, textvariable=kingdom_input, font=('calibre', 10, 'normal')).grid(row=0, column=1)
     tk.Label(root, text='Search Amount', font=('calibre', 10, 'bold')).grid(row=1, column=0)
-    tk.OptionMenu(root, variable2, *options).grid(row=1, column=1)
-    tk.Checkbutton(root, text="Resume Scan", variable=var1, font=('calibre', 10, 'bold')).grid(row=2, column=1, pady=4)
+    tk.OptionMenu(root, search_option, *options).grid(row=1, column=1)
+    tk.Checkbutton(root, text="Resume Scan", variable=resume_scan, font=('calibre', 10, 'bold')).grid(row=2, column=1, pady=4)
     tk.Button(root, text="Search", command=search).grid(row=7, column=1, pady=5)
     tk.Label(root, text=u"\u00A9 nikolakis1919", font=('calibre', 10, 'bold')).grid(row=8, column=1, pady=10)
     tk.Button(root, foreground='Green', text='Donate', command=open_donate_link, font=('calibre', 10, 'bold')).grid(row=12, column=1, pady=10)
     tk.Label(root, text='Find me on discord: nikos#4469', font=('calibre', 10, 'bold')).grid(row=9, column=1, pady=10)
     tk.Button(root, foreground='Blue', text='Join Discord', command=open_discord_link, font=('calibre', 10, 'bold')).grid(row=13, column=1, pady=10)
-    
-    tk.Label(root, text='Position', font=('calibre', 10, 'bold')).grid(row=3, column=0)
-    tk.Entry(root, textvariable=curr_scan_pos_input, font=('calibre',10,'normal')).grid(row=3,column=1)
-
-    tk.Checkbutton(root, text="New File", variable=new_file_chkbox, font=('calibre',10,'bold')).grid(row=4,column=1,pady=4)
-    tk.Checkbutton(root, text="Is Repair", variable=is_repair_chkbox, font=('calibre',10,'bold')).grid(row=5,column=1,pady=4)
-
 
 
     root.mainloop()
@@ -191,7 +186,7 @@ def go_to_rank_page_from_main(device):
     randomize_time(1.3)
 
 
-def main_loop(device, sheet1):
+def main_loop(config, device, sheet1):
     if not resume_scanning:
         go_to_rank_page_from_main(device)
     stop = False
@@ -205,6 +200,8 @@ def main_loop(device, sheet1):
     keyboard.on_press(onkeypress)
 
     all_data = []
+
+    has_error = False
     #while this saves data on buffer
     j = 4 if resume_scanning else 0
     try:
@@ -324,6 +321,7 @@ def main_loop(device, sheet1):
 
             
     except:
+        has_error=True
         print('An issue has occured. Please rerun the tool and use "resume scan option" from where tool stopped. If issue seems to remain, please contact me on discord!')
         #Save the excel file in the following format e.g. TOP300-2021-12-25-1253.xls or NEXT300-2021-12-25-1253.xls
         traceback.print_exc()
@@ -332,22 +330,44 @@ def main_loop(device, sheet1):
         file_name_prefix = 'NEXT'
     else:
         file_name_prefix = 'TOP'
-    wb.save(f'output/Governor_Scan_{file_name_prefix}-{search_range-j}_{kingdom}_{today_datetime}.xls')
+
+
+    file_name = f'output/Governor_Scan_{file_name_prefix}-{search_range-j}_{kingdom}_{today_datetime}.xls'
+
+    wb.save(file_name)
     #googlesheets
     
-    config = getAppConfig()
-    client = get_client(config)
+    if not resume_scanning:
+        client = get_client(config)
+        data_description = config["EVENT_DESCRIPTION"] +' - ' + (utc_datetime.strftime("%d %b"))
+        add_data_tab(config, new_gs_tab, all_data, client)
+        add_looker_tab(config, data_description, new_gs_tab, client)
+        print("Governor Scan Completed.")
+    
+    new_config = getFileConfig()
+    
+    if has_error:
+        new_config['Default']['RESUME_SCAN'] = str(True)
+    else: 
+        new_config['Default']['RESUME_SCAN'] = str(False)
+        
+    new_config['Default']['SEARCH_RANGE'] = search_range
+    new_config['Default']['KINGDOM_ID'] = kingdom
 
-    data_description = config["EVENT_DESCRIPTION"] +' - ' + (utc_datetime.strftime("%d %b"))
-    add_data_tab(config, new_gs_tab, all_data, client)
-    add_looker_tab(config, data_description, new_gs_tab, client)
+
+    #Fix last gov permission
+    with open('config.ini', 'w') as configfile:
+        configfile.write(new_config)
+    
     print("Governor Scan Completed.")
+    
 
 if __name__ == "__main__":
+    config = getAppConfig()
     check_for_updates()
-    create_input_gui()
+    create_input_gui(config)
     adb = initialize_adb() 
     device = get_device(adb)
     resize_emulator(device)
     wb, sheet1 = setup_excel()
-    main_loop(device, sheet1)
+    main_loop(config, device, sheet1)

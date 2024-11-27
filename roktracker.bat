@@ -1,6 +1,8 @@
 @echo  off
 set /P PORT=Enter PORT:
 @echo on
+Rem START "" "E:\BlueStacks_nxt\HD-Player.exe" --instance Pie64 --cmd launchApp --package "com.lilithgame.roc.gp"
+timeout /t 50 /nobreak
 if not exist "output" mkdir output
 ".\platform-tools\adb.exe" kill-server
 ".\platform-tools\adb.exe" connect localhost:%PORT%
