@@ -54,6 +54,17 @@ Results in excel file.\
 
 
 
+# This branch includes Google sheets data transfer
+Go To Google Projects and Enable Googlesheet API, Create a service account, generate a key, open json file and get the email to whitelist in your working google sheets.
 
 
 
+
+#TODO
+- Saving File Names to Config and Recovery. refine resume/repair flow
+
+- remove extra inputs
+
+- Auto Copying of Template and Start a New MM Sheet
+
+- Add Error Handling for Configs, Google Sheet Errors

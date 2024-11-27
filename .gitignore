@@ -1,0 +1,4 @@
+platform-tools/
+output/
+google_service_account.json
+*.pyc
